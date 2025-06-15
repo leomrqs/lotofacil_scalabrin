@@ -1,0 +1,5 @@
+# Saídas grandes – nunca mandar p/ Git
+resultados/
+prog2_saida/
+*.tar
+*.tar.gz
