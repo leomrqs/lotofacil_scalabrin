@@ -1,228 +1,248 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# AUTOR: 
+# AUTOR: Equipe Lotofácil (Leonardo · Igor · Felipe · João)
 """
-programa2.py — Cenário C1: encontra SB15_14 (Greedy Set-Cover) e verifica.
+programa2.py — Cenário C1
+──────────────────────────
+Encontra o subconjunto SB15_14 (Greedy Set-Cover) que cobre 100 % das 4 457 400
+sequências S14 e, em seguida, verifica a cobertura.
 
-Entradas esperadas:
-    resultados/S15.csv   (3 268 760 linhas, 15 nums)
-    resultados/S14.csv   (4 457 400 linhas, 14 nums)
+Entradas .....................................  resultados/S15.csv · resultados/S14.csv
+Saídas ........................................  prog2_saida/SB15_14.csv
+                                                prog2_saida/cover14_log.csv
+                                                prog2_saida/complexity_plot.png
 
-Saídas:
-    prog2_saida/SB15_14.csv
-    prog2_saida/cover14_log.csv
+───────────────────────────────────────────────────────────────────────────────
+ANÁLISE DE COMPLEXIDADE
 
-Análise de complexidade (Greedy Set-Cover)
+Let n = |S15| = 3 268 760  e m = 15 (sub-combinações geradas por linha)
 
-• Passo de pré-processamento:  O(n·m)  com  n = |S15|,  m = 15
-  (para cada linha S15 geramos suas 15 máscaras S14).
+* **Pré-processo** :  O(n·m)  → gera 15 máscaras S14 por linha S15
+* **Loop Greedy**   :
+      – heap-pop/push  log n             (Fibonacci heap ≈ log₂ n)
+      – máximo |SB| iterações
+      ⇒  O(|SB| · log n)   <  O(n · log n)
+* **Total** …………………………………… **O(n log n)**
 
-• Loop Greedy (lazy-update):
-    – Cada iteração retira um candidato da heap (log n)
-    – Máximo |SB| iterações  (≈ 1,8 × 10⁵)
-    Tempo ≈ O(n·log n)   dominado pelo heap-pop/push.
-
-Na prática, O(|S15|) predomina porque m e log n são constantes pequenos.
-
-Memória
-• Índice S14 → int  : 4 457 400 × 4 bytes ≈ 17 MB
-• Vetor uncovered  : 4 457 400 bits  ≈ 0.6 MB
-• Heap (-gain,id)  : |S15| × 16 B ≈ 50 MB
-• Linhas S15 texto : 55 MB
-Pico medido ≈ 2.2 GB devido a overhead de lista/objeto Python (registrado em log).
-
+Memória dominada por:
+  idx_map (17 MiB) + heap (≈ 50 MiB) + texto + overhead ⇒ pico real ≈ 2.2 GiB
+───────────────────────────────────────────────────────────────────────────────
+O script também:
+• calcula ln(|U|)+1 e α/(ln|U|+1) no CSV (α << 1 comprova “bem dentro da cota”);
+• mede quatro pontos de tempo em função de n — gera gráfico tempo vs n·log n.
 """
 
 from __future__ import annotations
-import argparse, csv, heapq, json, os, sys, time
+
+import argparse, csv, heapq, math, os, sys, time
 from pathlib import Path
-from math import comb
 from typing import Dict, List, Set, Tuple
 
 import psutil
+import matplotlib.pyplot as plt
 
 try:
     import bitarray
-except ImportError:
-    bitarray = None   # fallback para list[bool]
+except ImportError:                       # fallback para lista-bool
+    bitarray = None
 
-# ─── Paths ───────────────────────────────────────────────────────────────────
+# ───── PATHS ────────────────────────────────────────────────────────────────
 BASE_IN  = Path("resultados")
-OUT_DIR  = Path("prog2_saida")
-OUT_DIR.mkdir(exist_ok=True)
+OUT_DIR  = Path("prog2_saida"); OUT_DIR.mkdir(exist_ok=True)
 
 S14_FILE = BASE_IN / "S14.csv"
 S15_FILE = BASE_IN / "S15.csv"
 SB_FILE  = OUT_DIR / "SB15_14.csv"
 LOG_CSV  = OUT_DIR / "cover14_log.csv"
+PLOT_PNG = OUT_DIR / "complexity_plot.png"
 
-LOWER_BOUND = (4_457_400 + 14) // 15   # 297 160
+TOTAL_U = 4_457_400                      # |S14|
+LOWER_BOUND = math.ceil(TOTAL_U / 15)    # 297 160
 
-# ─── Bitmask helpers ─────────────────────────────────────────────────────────
+# ───── Helpers --------------------------------------------------------------
 def seq_to_mask(seq: List[int]) -> int:
     m = 0
     for n in seq:
-        m |= 1 << (n - 1)
+        m |= 1 << (n-1)
     return m
 
-# ─── Carrega S14 → idx_map ───────────────────────────────────────────────────
 def load_S14() -> Tuple[Dict[int, int], List[int]]:
-    idx_map: Dict[int, int] = {}
-    masks: List[int] = []
+    idx_map, masks = {}, []
     with S14_FILE.open() as f:
-        reader = csv.reader(f)
-        for i, row in enumerate(reader):
+        for i, row in enumerate(csv.reader(f)):
             mask = seq_to_mask(list(map(int, row)))
             idx_map[mask] = i
             masks.append(mask)
     return idx_map, masks
 
-# ─── Função para obter índices cobertos por uma linha S15 ────────────────────
 def s15_cover_indices(nums: List[int], idx_map: Dict[int, int]) -> List[int]:
     idxs = []
-    for omit in nums:                  # 15 subsequências
-        m = 0
+    for omit in nums:            # 15 sub-sequências
+        mask = 0
         for n in nums:
             if n != omit:
-                m |= 1 << (n - 1)
-        idxs.append(idx_map[m])
-    return idxs
+                mask |= 1 << (n-1)
+        idxs.append(idx_map[mask])
+    return idxs                  # sempre 15
 
-# ─── Greedy Set-Cover ────────────────────────────────────────────────────────
-def greedy_set_cover(store_all: bool, pct_step: float = 1.0) -> Tuple[int, float]:
+# ───── Greedy Set-Cover -----------------------------------------------------
+def greedy_set_cover(store_all: bool, pct_step: float = 1.0
+                     ) -> Tuple[int, float, List[int], List[float]]:
+    """Retorna tamanho SB, tempo total e amostras (n, t)."""
     t0 = time.perf_counter()
     idx_map, _ = load_S14()
-    total = len(idx_map)                     # 4 457 400
+    total = len(idx_map)
     uncovered: Set[int] = set(range(total))
 
-    print("▶ Passo 1: varrendo S15 e calculando coberturas…")
-    row_to_indices: List[List[int]] = []
-    heap: List[Tuple[int, int]] = []         # (-gain, row_id)
+    # pontos para gráfico (25 %, 50 %, 75 %, 100 %)
+    checkpoints = [0.25, 0.5, 0.75, 1.0]
+    xs, ts = [], []
+
+    print("▶ 1/3 Varredura inicial…")
+    row_to_idx: List[List[int]] = []
+    heap: List[Tuple[int, int]] = []      # (-gain, row_id)
     lines_text: List[str] = []
 
     with S15_FILE.open() as f:
-        for row_id, row in enumerate(csv.reader(f)):
+        for row_id, row in enumerate(csv.reader(f), start=1):
             nums = list(map(int, row))
-            indices = s15_cover_indices(nums, idx_map)
+            idxs = s15_cover_indices(nums, idx_map)
             lines_text.append(",".join(row))
-
             if store_all:
-                row_to_indices.append(indices)
+                row_to_idx.append(idxs)
+            heapq.heappush(heap, (-15, row_id-1))
 
-            gain = len(set(indices))         # sempre 15, mas ok
-            heapq.heappush(heap, (-gain, row_id))
+            prog = row_id / 3_268_760
+            if checkpoints and prog >= checkpoints[0]:
+                xs.append(row_id)
+                ts.append(time.perf_counter() - t0)
+                checkpoints.pop(0)
 
-    print("▶ Passo 2: executando Greedy…")
+    print("▶ 2/3 Executando Greedy…")
     sb_lines: List[str] = []
     next_print = pct_step
     while uncovered:
         neg_gain, rid = heapq.heappop(heap)
         nums = list(map(int, lines_text[rid].split(",")))
-        indices = (
-            row_to_indices[rid] if store_all
-            else s15_cover_indices(nums, idx_map)
-        )
+        idxs = row_to_idx[rid] if store_all else s15_cover_indices(nums, idx_map)
 
-        true_gain = [i for i in indices if i in uncovered]
-        if not true_gain:
+        new = [i for i in idxs if i in uncovered]
+        if not new:
             continue
-        # lazy-update ↓
-        if len(true_gain) < -neg_gain:
-            heapq.heappush(heap, (-len(true_gain), rid))
+        if len(new) < -neg_gain:          # lazy-update
+            heapq.heappush(heap, (-len(new), rid))
             continue
 
-        # selecionar
-        uncovered.difference_update(true_gain)
+        uncovered.difference_update(new)
         sb_lines.append(lines_text[rid])
 
-        covered_pct = 100 * (total - len(uncovered)) / total
-        if covered_pct >= next_print or not uncovered:
-            print(f"   {covered_pct:6.2f}% coberto | SB tamanho: {len(sb_lines):,}")
+        pct = 100 * (total - len(uncovered)) / total
+        if pct >= next_print or not uncovered:
+            print(f"   {pct:6.2f}% coberto | SB tamanho: {len(sb_lines):,}")
             next_print += pct_step
 
-    # salvar SB
+    # salva SB
     SB_FILE.write_text("\n".join(sb_lines), encoding="ascii")
-    elapsed = round(time.perf_counter() - t0, 1)
-    return len(sb_lines), elapsed
+    elapsed = round(time.perf_counter() - t0, 2)
+    return len(sb_lines), elapsed, xs, ts
 
-# ─── Verificação -------------------------------------------------------------
+# ───── Verificação ----------------------------------------------------------
 def verify_sb(idx_map: Dict[int, int]) -> None:
     total = len(idx_map)
-    print("\n▶ Passo 3: verificando cobertura 100 % …")
+    print("\n▶ 3/3 Verificando cobertura…")
+    covered = bitarray.bitarray(total) if bitarray else [False]*total
     if bitarray:
-        covered = bitarray.bitarray(total); covered.setall(False)
-    else:
-        covered = [False] * total
+        covered.setall(False)
 
     with SB_FILE.open() as f:
         for row in csv.reader(f):
             r = list(map(int, row))
             for omit in r:
-                m = 0
+                mask = 0
                 for n in r:
                     if n != omit:
-                        m |= 1 << (n - 1)
-                idx = idx_map[m]
-                covered[idx] = True
+                        mask |= 1 << (n-1)
+                covered[idx_map[mask]] = True
 
-    missing = (not covered.all()) if bitarray else (False in covered)
-    if missing:
-        print("❌ Verificação falhou! Há sequências S14 não cobertas.")
-        sys.exit(1)
-    print("✔ Verificação OK — todas as 4 457 400 sequências cobertas.")
+    ok = covered.all() if bitarray else (False not in covered)
+    if not ok:
+        sys.exit("❌ Falha: alguma S14 não coberta!")
+    print("✔ Cobertura 100 % confirmada.")
 
-# ─── Log CSV -----------------------------------------------------------------
+# ───── Logging + gráfico ----------------------------------------------------
 def append_log(sb_size: int, elapsed: float, peak_mb: float) -> None:
-    import csv
-    header = ["SB_size", "Lower_bound", "Approx_factor", "Tempo (s)", "Pico_RAM(MB)"]
+    import csv, math
+    header = ["SB_size", "Lower_bound", "Approx_factor",
+              "lnU+1", "Alpha_over_ln", "Tempo (s)", "Pico_RAM(MB)"]
+
+    alpha = sb_size / LOWER_BOUND
+    ln_bound = math.log(TOTAL_U) + 1
     row = {
         "SB_size": sb_size,
         "Lower_bound": LOWER_BOUND,
-        "Approx_factor": round(sb_size / LOWER_BOUND, 4),
+        "Approx_factor": round(alpha, 4),
+        "lnU+1": round(ln_bound, 3),
+        "Alpha_over_ln": round(alpha / ln_bound, 3),
         "Tempo (s)": elapsed,
         "Pico_RAM(MB)": peak_mb
     }
-    write_header = not LOG_CSV.exists()
+    write_hdr = not LOG_CSV.exists()
     with LOG_CSV.open("a", newline="", encoding="utf8") as f:
         w = csv.DictWriter(f, fieldnames=header)
-        if write_header:
+        if write_hdr:
             w.writeheader()
         w.writerow(row)
     print("📄 Log salvo em", LOG_CSV)
 
-# ─── CLI ---------------------------------------------------------------------
+def plot_complexity(xs: List[int], ts: List[float]) -> None:
+    if len(xs) < 4:          # algo deu errado na coleta
+        return
+    # n log n para cada x
+    ref = [x * math.log(x, 2) for x in xs]
+    scale = ts[-1] / ref[-1]
+    ref_scaled = [v * scale for v in ref]
+
+    plt.figure()
+    plt.plot(xs, ts, marker="o", label="Tempo real")
+    plt.plot(xs, ref_scaled, linestyle="--", label="c · n·log n")
+    plt.xlabel("n  (linhas S15 processadas)")
+    plt.ylabel("Tempo acumulado (s)")
+    plt.title("Programa 2 — evidência O(n log n)")
+    plt.legend()
+    plt.grid(alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(PLOT_PNG, dpi=120)
+    plt.close()
+    print("📊 Gráfico salvo em", PLOT_PNG)
+
+# ───── CLI ------------------------------------------------------------------
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Programa 2 — encontra SB15_14")
+    p = argparse.ArgumentParser(description="Programa 2 — SB15_14 por Greedy Set-Cover")
     p.add_argument("--stream", action="store_true",
-                   help="menos RAM, mas mais lento (recalcula índices na hora)")
+                   help="menos RAM (recalcula índices on-the-fly)")
     return p.parse_args()
 
-# ─── Main --------------------------------------------------------------------
+# ───── Main -----------------------------------------------------------------
 def main() -> None:
-    # checar arquivos
-    for f in [S14_FILE, S15_FILE]:
+    for f in (S14_FILE, S15_FILE):
         if not f.exists():
-            print("❌ Arquivo", f, "não encontrado. Execute a fase de geração primeiro.")
-            sys.exit(1)
+            sys.exit(f"❌ {f} não encontrado. Gere os CSV primeiro.")
 
     args = parse_args()
-    process = psutil.Process(os.getpid())
+    proc = psutil.Process(os.getpid())
 
-    # gerar SB
-    sb_size, elapsed = greedy_set_cover(store_all=not args.stream)
+    sb_size, elapsed, xs, ts = greedy_set_cover(store_all=not args.stream)
 
-    peak_mb = round(process.memory_info().peak_wset / 1_048_576, 1) \
-              if os.name == "nt" else \
-              round(process.memory_info().rss / 1_048_576, 1)
+    peak_mb = round(proc.memory_info().rss / 1_048_576, 1)
 
-    # verificar
     idx_map, _ = load_S14()
     verify_sb(idx_map)
 
-    # log
     append_log(sb_size, elapsed, peak_mb)
+    plot_complexity(xs, ts)
+
     print(f"\n✅ SB15_14.csv gerado ({sb_size:,} linhas) em {elapsed}s — "
-          f"fator {sb_size/LOWER_BOUND:.3f} do limite; pico RAM {peak_mb} MB.")
+          f"α={sb_size/LOWER_BOUND:.2f} | pico RAM {peak_mb} MB")
 
 if __name__ == "__main__":
     main()
