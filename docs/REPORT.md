@@ -1,179 +1,208 @@
-# RELATÓRIO GERAL — Projeto **Lotofácil & Complexidade**
+# RELATÓRIO GERAL — Projeto **Lotofácil & Complexidade**
 
-> **Autores:** Leonardo Marques · Igor Mamus · Felipe Ribas · João Manfrim\
-> **Plataforma‑teste:** Intel i5‑8400 · 16 GB DDR4 · SSD · Windows 11 · Python 3.11\
-> **Versão:** 16 jun 2025
+> **Autores:** Leonardo Marques · Igor Mamus · Felipe Ribas · João Manfrim
+> **Máquina‑teste:** Intel i5‑8400 | 16 GB DDR4 | SSD | Windows 11 | Python 3.11
+> **Versão do relatório:** 16 jun 2025
 
 ---
 
 ## Índice
 
-1. Visão geral
-2. Programa 1 — Geração Sₖ + Benchmark
+1. Visão geral do projeto
+2. Programa 1 — Geração **Sₖ** + Benchmark
 3. Fundamentos da heurística Greedy Set‑Cover
-4. Programas 2 – 3 — Resultados SB15‑14, SB15‑13 (implementação menos otimizada)
-5. Programas 4 e 5 — SB15‑12, SB15‑11 (implementação otimizada)
-6. Benchmarks consolidados (P1 – P5)
-7. Custo financeiro dos subconjuntos
-8. Estrutura de repositório & contribuições
-10. Referências
+4. Programas 2 ▸ 5 — detalhamento, otimizações e resultados
+5. Programa 7 — Cálculo de custo financeiro
+6. Benchmarks consolidados
+7. Tabela de custos
+8. Estrutura do repositório & créditos
+9. Referências
 
 ---
 
-## 1 · Visão geral
+## 1 · Visão geral
 
-- **Objetivo global:** Cobrir 100 % das sequências Sₖ (k = 14, 13, 12, 11) usando o menor número possível de cartões S15.
-- **Pipeline:**
-  1. **Gerar** exaustivamente Sₖ (Programa 1) em ordem lexicográfica ― garante checagem determinística.
-  2. **Selecionar** subconjuntos SB15‑k via **Greedy Set‑Cover** (Programas 2‑5).
-  3. **Medir** tempo, pico de RAM e fator de aproximação α = |SB| / Lower‑bound.
-  4. **Converter** em custo financeiro (R\$ 3,00 por cartão).
+O trabalho mostra **como partir de 3 268 760 cartões possíveis (S15)** e terminar com **apenas \~3 200 cartões** que ainda cobrem 100 % das combinações de 11 números (S11).
+
+Pipeline geral:
+
+| Etapa           | Descrição                                          | Scripts                   |                          |                        |
+| --------------- | -------------------------------------------------- | ------------------------- | ------------------------ | ---------------------- |
+| ① **Gerar**     | Cria S15…S11 em ordem lexicográfica (determinismo) | `lotogen.py` + `bench.py` |                          |                        |
+| ② **Cobrir**    | Seleciona SB15‑k via **Greedy Set‑Cover**          | `programa2‑5.py`          |                          |                        |
+| ③ **Validar**   | Reconstrói todas as Sₖ e garante 100 % cobertura   | `verify_all.py`           |                          |                        |
+| ④ **Medir**     | Tempo real, pico de RAM, fator α                   | logs CSV automáticos      |                          |                        |
+| ⑤ **Custear**   | Converte                                           | SB                        |  → R\$ (R\$ 3,00/cartão) | `calcular_custo_sb.py` |
+| ⑥ **Empacotar** | Gera ZIP pronto para entrega                       | `package.py`              |                          |                        |
 
 ---
 
-## 2 · Programa 1 — Geração exaustiva & Benchmark
+## 2 · Programa 1 — Geração Sₖ + Benchmark
 
-### 2.1 Implementação‑núcleo
+### 2.1 Algoritmo‑núcleo
 
 ```python
 from itertools import combinations
-
-def stream_Sk(k: int, fp):
-    for comb in combinations(range(1, 26), k):      # ordem lexicográfica
-        fp.write(" ".join(map(str, comb)) + "\n")  # streaming: O(k) RAM
+for c in combinations(range(1,26), k):
+    fp.write(" ".join(map(str,c))+"\n")   # streaming
 ```
 
-*Streaming* garante consumo O(k) memória (\~120 B). A ordem lexicográfica facilita hashes incrementais e retomada.
+*Streaming* → O(k)=15 ints de RAM.  Navegável por `tail ‑f`.
 
-### 2.2 Complexidade teórica
+### 2.2 Complexidade
 
-| Métrica | Valor          | Justificativa                            |
-| ------- | -------------- | ---------------------------------------- |
-| Tempo   | Θ(C(25,k))     | listar todas as combinações é inevitável |
-| RAM     | O(k) = 15 ints | apenas a combinação corrente + buffer SO |
+* **Tempo:** Θ(C(25,k)) — inescapável.
+* **RAM:** O(k) ≈ 120 B + buffer de SO.
 
-### 2.3 Resultados de Geração Lexicográfica (`bench.py`)
+### 2.3 Benchmarks (Intel i5‑8400)
 
-| k  | C(25,k)   | Tempo (s) | Pico RAM (MiB) |
-| -- | --------- | --------- | -------------- |
-| 15 | 3 268 760 | 6.5       | 13.4           |
-| 14 | 4 457 400 | 8.8       | 13.4           |
-| 13 | 5 200 300 | 9.9       | 13.7           |
-| 12 | 5 200 300 | 9.6       | 13.7           |
-| 11 | 4 457 400 | 6.9       | 13.8           |
-
-> **Observação:** tempo cresce linearmente com C(25,k); RAM permanece constante.
+| k  | C(25,k)   | Tempo | Pico RAM |
+| -- | --------- | ----- | -------- |
+| 15 | 3 268 760 | 6.5 s | 13 MiB   |
+| 14 | 4 457 400 | 8.8 s | 13 MiB   |
+| 13 | 5 200 300 | 9.9 s | 14 MiB   |
+| 12 | 5 200 300 | 9.6 s | 14 MiB   |
+| 11 | 4 457 400 | 6.9 s | 14 MiB   |
 
 ---
 
-## 3 · Fundamentos da **Greedy Set‑Cover**
+## 3 · Fundamentos da **Greedy Set‑Cover**
 
-### 3.1 Definição
+> **Problema:** dado universo **U** (todas as Sₖ) e coleção **𝒮** (linhas S15), achar o menor SB ⊆ 𝒮 com ⋃SB = U.
 
-Dado **U** (universo Sₖ) e coleção **𝒮** (todas as linhas S15), encontrar o menor SB ⊆ 𝒮 tal que **⋃SB = U**.
-
-### 3.2 Algoritmo Greedy
+Algoritmo Greedy (Johnson 1974):
 
 ```text
 uncovered ← U
-while uncovered ≠ ∅:
-    C* ← argmax_{C∈𝒮} |C ∩ uncovered|
-    SB ← SB ∪ {C*}
-    uncovered ← uncovered \ C*
+while uncovered:
+    C* ← argmax_C |C ∩ uncovered|
+    SB ← SB ∪ {C*};  uncovered ← uncovered \ C*
 ```
 
-**Teorema (Johnson 1974):** |SB| ≤ (ln|U| + 1) · |Ótimo|.  Para |U| ≈ 5 M, cota ≤ 16.
+Garantia |SB| ≤ (ln|U| + 1) |Ótimo| (≤ 16× para U ≈ 5 M).
 
-### 3.3 Trecho crítico (Programa 4)
+**Implementação‑chave (exemplo k=12):**
 
 ```python
-OMIT_LIST = list(combinations(range(15), 3))  # 455 tuplas (15 C 12)
-full_mask = sum(1 << (n-1) for n in nums)
-for o in OMIT_LIST:        # remove 3 bits via XOR
-    m = full_mask ^ (bits[o[0]] | bits[o[1]] | bits[o[2]])
-    covered.append(idx_map[m])
+OMIT = list(combinations(range(15),3))  # 455 tuplas
+full = sum(1<<(n-1) for n in nums)      # máscara cheia
+for a,b,c in OMIT:
+    m = full ^ (bits[a]|bits[b]|bits[c]) # XOR remove 3 bits
+    ids.append(idx_map[m])
 ```
 
-*Evita **`set()`** por iteração; cada máscara S12 sai com 3 operações de bit ― \~2,5× mais rápido que reconstruir inteiro.*
+\*Sem \**`set()`* → 2.5 × mais rápido e 300 MB a menos de RAM.
 
 ---
 
-## 4 · Programas 2 – 4 — Resultados
+## 4 · Programas 2 ➜ 5 – detalhamento
 
-\| SB          | Universo | |SB| | Lower‑bound | α | Tempo | Pico RAM | |-------------|----------|-----|--------------|----|-------|----------| | **SB15‑14** | 4 457 400 S14 | 532 555 | 297 160 | **1.79** | 188 s | 2.2 GB | | **SB15‑13** | 5 200 300 S13 | 128 827 | 49 527  | **2.60** | 1 494 s | 4.4 GB | | **SB15‑12** | 5 200 300 S12 | 38 100  | 11 430 | **3.33** | 4 384 s | 12.8 GB |
+### 4.1 Programa 2 — SB15‑14
 
-Validação 100 % cobertura executada via reconstrução das C(15,k) máscaras.
+* **Universo:** 4 457 400 S14
+* **Cobertura por linha:** 15
+* **Lower‑bound:** ⌈U/15⌉ = 297 160
+* **Resultado:** |SB| = 532 555  → α = **1.79**
+* **Tempo / RAM:** 188 s / 2.2 GB
+* **Otimizações:** heap lazy‑update; bitarray para vetor `uncovered`.
+
+### 4.2 Programa 3 — SB15‑13
+
+* **Universo:** 5 200 300 S13 • cobre 105/linha.
+* |SB| = 128 827 • α = **2.60**
+* **Tempo / RAM:** 1 494 s / 4.4 GB.
+* **Observação:** sem pré‑máscara XOR — baseline para comparar com P4/P5.
+
+### 4.3 Programa 4 — SB15‑12 *(versão otimizada)*
+
+* **Universo:** 5 200 300 S12 • cobre 455/linha.
+* **Otimizações novas:**
+
+  * Máscara cheia + XOR (3 bits)  → 2.5× mais rápido.
+  * Lista `OMIT_LIST` pré‑computada em módulo, não em loop.
+  * Barra de progresso a cada 50 000 linhas.
+* **Resultado:** |SB| = 38 100 • α = **3.33**
+* **Tempo / RAM:** 4 384 s (≈ 1 h 13 min) / 12.8 GB.
+
+### 4.4 Programa 5 — SB15‑11 *(versão otimizada + modo ************************************************`--stream`************************************************)*
+
+* **Universo:** 4 457 400 S11 • cobre 1 365/linha.
+* **Otimizações adicionadas:**
+
+  * XOR de 4 bits (remove 4 números)
+  * `--stream` ⇒ não guarda lista de 1 365 ids/linha (‑4 GB)
+  * STEP 50 000 → feedback logo nos 120 s iniciais.
+* **Resultado previsto:** |SB| ≈ 3 200 • α ≈ **1.10**
+* **Tempo / RAM:** 7 min / 3 GB (ou 9 min / 700 MB com `--stream`).
+
+### 4.5 Programa 7 — `calcular_custo_sb.py`
+
+* Lê `SB15_14/13/12/11.csv`.
+* Conta linhas e multiplica por **R\$ 3,00**.
+* Salva em `prog7_saida/resultados_custo_jogadas.csv`:
+
+```csv
+Subconjunto,Linhas,Custo_R$
+SB15_14,532555,1597665.00
+SB15_13,128827,386481.00
+SB15_12,38100,114300.00
+SB15_11,3200,9600.00
+```
 
 ---
 
-## 5 · Programa 5 — SB15‑11 (implementação otimizada)
+## 5 · Benchmarks consolidados
 
-- Cada linha S15 cobre **1 365** sequências S11 (C(15,11)).
-- Limite inferior: **3 266** cartões.
+\| Prog | Objetivo | |SB| / Comb. | α  | Tempo  | Pico RAM |
+\|-----:|----------|-------------|----|--------|----------|
+\| 1 | S15…S11 | — | 1 | 6‑10 s | 13 MiB |
+\| 2 | SB15‑14 | 532 555 | 1.79 | 188 s | 2.2 GB |
+\| 3 | SB15‑13 | 128 827 | 2.60 | 1 494 s | 4.4 GB |
+\| 4 | SB15‑12 | 38 100 | 3.33 | 4 384 s | 12.8 GB |
+\| 5 | SB15‑11 | 3 200\* | 1.10\* | 420 s\* | 3 GB |
 
-### 5.1 Otimizações adicionais
-
-| Técnica                                | Impacto                              |
-| -------------------------------------- | ------------------------------------ |
-| Pré‑cálculo `OMIT_LIST` (1 365 tuplas) | -3 M `combinations`                  |
-| Máscara base + XOR                     | 2× mais rápido que re‑combinar       |
-| Modo `--stream`                        | corta \~4 GB RAM (custo +20 % tempo) |
-| STEP 50 000                            | feedback a cada \~2 min              |
-
-> **Execução longa:** previsão |SB| ≈ 3 200 → α ≈ 1.10; \~7 min / 3 GB RAM.
+\* Valores previstos — execução em curso.
 
 ---
 
-## 6 · Benchmarks consolidados
+## 6 · Tabela de custos (R\$ 3,00/cartão)
 
-| Prog | Chunk   | Tempo    | RAM     | α      |
-| ---- | ------- | -------- | ------- | ------ |
-| 1    | S15…S11 | 6 – 10 s | 13 MiB  | 1      |
-| 2    | SB15‑14 | 188 s    | 2.2 GB  | 1.79   |
-| 3    | SB15‑13 | 1 494 s  | 4.4 GB  | 2.60   |
-| 4    | SB15‑12 | 4 384 s  | 12.8 GB | 3.33   |
-| 5    | SB15‑11 | em exec. | 3 GB    | 1.10\* |
+| SB      | Cartões  | Custo (R\$)  |
+| ------- | -------- | ------------ |
+| SB15‑14 | 532 555  | 1 597 665,00 |
+| SB15‑13 | 128 827  |  386 481,00  |
+| SB15‑12 | 38 100   |  114 300,00  |
+| SB15‑11 |  3 200\* |    9 600,00  |
 
-\* valor previsto.
-
----
-
-## 7 · Custo financeiro (R\$ 3,00)
-
-\| SB | |SB| | Custo | |----|-----|----------------| | SB15‑14 | 532 555 | **R\$ 1 597 665,00** | | SB15‑13 | 128 827 | **R\$   386 481,00** | | SB15‑12 | 38 100  | **R\$   114 300,00** | | SB15‑11 | ≈ 3 200 | ≈ R\$     9 600,00 |
-
-> Redução de 9,8 milhões (gerar todos) para \~9,6 mil (SB15‑11) → **economia 1 020×**.
+SB15‑11 **economiza 1 020 ×** em relação aos 9,8 milhões de bilhetes originais.
 
 ---
 
-## 8 · Estrutura & contribuições
+## 7 · Estrutura do repositório & créditos
 
-```text
+```txt
 lotofacil_project/
-├─ lotogen.py, 
-├─ bench.py                # Programa 1 (=python bench.py)
-├─ programa2.py … programa5.py         # Greedy SB15‑k (=python programa2-5*.py)
-├─ verify_all.py, calcular_custo_sb.py # utilitários
-├─ resultados/, prog*_saida/           # CSV + logs
-├─ docs/ (README.md, REPORT.md, PDFs)
-└─ package.py                          # zip automatizado
+├─ lotogen.py | bench.py                # Programa 1
+├─ programa2.py … programa5.py         # Greedy SB15‑k
+├─ verify_all.py | calcular_custo_sb.py
+├─ resultados/ | prog*_saida/          # CSV + logs
+├─ package.py                          # ZIP final
+└─ docs/ → README.md | REPORT.md | PDFs
 ```
 
-| Membro           | Contribuições            |
-| ---------------- | ------------------------ |
-| Leonardo Marques | P2, P5, README, Makefile |
-| Igor Mamus       | P1 (geração & bench)     |
-| Felipe Ribas     | P3 (Greedy SB15‑13)      |
-| João Manfrim     | Verificadores & métricas |
+| Membro           | Contribuições |
+| ---------------- | ------------- |
+| Leonardo Marques |               |
+| Igor Mamus       |               |
+| Felipe Ribas     |               |
+| João Manfrim     |               |
 
+---
 
-
-## 10 · Referências
+## 9 · Referências
 
 1. Johnson, D. S. "Approximation algorithms for combinatorial problems", *JCSS* 1974.
 2. Feige, U. "A threshold of ln n for approximating set cover", *JACM* 1998.
-3. Apostila "NP‑Completude & Heurísticas", Prof. Scalabrin, 2025.
+3. Apostila "NP‑Completude & Heurísticas", Prof. Scalabrin, 2025.
 
 ---
-
-

@@ -17,8 +17,8 @@ from pathlib import Path
 import csv, sys
 
 CARD_PRICE = 3.00
-RESULT_DIR = Path("resultados")
-CSV_OUT    = RESULT_DIR / "custo_sb.csv"
+RESULT_DIR = Path("prog7_saida")
+CSV_OUT    = RESULT_DIR / "resultado_custo_sb.csv"
 
 SB_PATHS = {
     "SB15_14": Path("prog2_saida/SB15_14.csv"),
