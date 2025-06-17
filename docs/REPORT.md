@@ -32,7 +32,7 @@ Pipeline geral:
 | ② **Cobrir**    | Seleciona SB15‑k via **Greedy Set‑Cover**          | `programa2‑5.py`          |                          |                        |
 | ③ **Validar**   | Reconstrói todas as Sₖ e garante 100 % cobertura   | `verify_all.py`           |                          |                        |
 | ④ **Medir**     | Tempo real, pico de RAM, fator α                   | logs CSV automáticos      |                          |                        |
-| ⑤ **Custear**   | Converte                                           | SB                        |  → R\$ (R\$ 3,00/cartão) | `calcular_custo_sb.py` |
+| ⑤ **Custear**   | Converte                                           | `calcular_custo_sb.py`    |  → R\$ (R\$ 3,00/cartão) |                        |
 | ⑥ **Empacotar** | Gera ZIP pronto para entrega                       | `package.py`              |                          |                        |
 
 ---
@@ -153,13 +153,13 @@ SB15_11,3200,9600.00
 
 ## 5 · Benchmarks consolidados
 
-\| Prog | Objetivo | |SB| / Comb. | α  | Tempo  | Pico RAM |
-\|-----:|----------|-------------|----|--------|----------|
-\| 1 | S15…S11 | — | 1 | 6‑10 s | 13 MiB |
-\| 2 | SB15‑14 | 532 555 | 1.79 | 188 s | 2.2 GB |
-\| 3 | SB15‑13 | 128 827 | 2.60 | 1 494 s | 4.4 GB |
-\| 4 | SB15‑12 | 38 100 | 3.33 | 4 384 s | 12.8 GB |
-\| 5 | SB15‑11 | 3 200\* | 1.10\* | 420 s\* | 3 GB |
+| Prog | Objetivo | |SB| / Comb. | α  | Tempo  | Pico RAM |
+|-----:|----------|-------------|----|--------|----------|
+| 1 | S15…S11 | — | 1 | 6‑10 s | 13 MiB |
+| 2 | SB15‑14 | 532 555 | 1.79 | 188 s | 2.2 GB |
+| 3 | SB15‑13 | 128 827 | 2.60 | 1 494 s | 4.4 GB |
+| 4 | SB15‑12 | 38 100 | 3.33 | 4 384 s | 12.8 GB |
+| 5 | SB15‑11 | 3 200\* | 1.10\* | 420 s\* | 3 GB |
 
 \* Valores previstos — execução em curso.
 
