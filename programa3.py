@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# AUTOR: 
 """
 programa3.py — Cenário C2: encontra SB15_13 (Greedy Set-Cover) e verifica.
 

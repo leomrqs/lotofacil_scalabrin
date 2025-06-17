@@ -1,8 +1,12 @@
-# Saídas grandes – nunca mandar p/ Git
+# Saídas grandes – nunca mandar p/ Git os resultados de programas
+# que geram muitos dados, como os de testes de performance
 resultados/
 prog2_saida/
 prog3_saida/
 prog4_saida/
 prog5_saida/
+prog7_saida/
 *.tar
 *.tar.gz
+lotofacil_submission.zip
+*.zip

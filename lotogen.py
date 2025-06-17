@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# AUTOR - Leonardo dos Santos Marques & Igor Mamus
 """lotogen.py — gerador de combinações Lotofácil.
-
 Suporta saída em:
-    • texto separado por espaço (.txt)
     • CSV separado por vírgula (.csv)
-
-Exemplos:
+Exemplos: (nao utilizados no fluxo principal, apenas para testes)
     python lotogen.py 15 --csv -o ./resultados
-    python lotogen.py --all --csv
+    python lotogen.py --all --csv 
 """
 from __future__ import annotations
 import argparse, math, sys, csv

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# AUTOR - Leonardo dos Santos Marques & Igor Mamus
 """
 bench.py — Benchmark Lotofácil (gera Sk → CSV, mede desempenho)
 
