@@ -121,24 +121,22 @@ SB_size,Lower_bound,Approx_factor,Tempo (s),Pico_RAM(MB)
 
 ## 📊 Benchmarks consolidados (16 jun 2025)
 
-| SB      | \|SB\|  | α      | Tempo       | Pico RAM |
+| SB      | |SB|    | α      | Tempo       | Pico RAM |
 | ------- | ------- | ------ | ----------- | -------- |
 | SB15‑14 | 532 555 | 1.79   | 188 s       | 2.2 GB   |
 | SB15‑13 | 128 827 | 2.60   | 1 494 s     | 4.4 GB   |
 | SB15‑12 | 38 100  | 3.33   | 4 384 s     | 12.8 GB  |
-| SB15‑11 | ≈ 3 200 | 1.10\* | em execução | 3 GB     |
-
-\* previsão final; Programa 5 ainda em execução.
+| SB15‑11 | 12 733  | 3.89   | 26 597 s    | 12.9 GB  |
 
 ---
 
 ## 💸 Custo financeiro (R\$ 3,00 por cartão)
 
 ```
-SB15‑14 → R$   1 597 665,00
-SB15‑13 → R$   386 481,00
-SB15‑12 → R$   114 300,00
-SB15‑11 → ≈ R$ 9 600,00   (economia 342×)
+SB15_14     | 532.555 | R$ 1.597.665   | 
+SB15_13     | 128.827 | R$  386.481    | 
+SB15_12     |  38.100 | R$  114.300    | 
+SB15_11     |  12.733 | R$   38.199    | 
 ```
 
 Gerado por `calcular_custo_sb.py`.
